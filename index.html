@@ -1,0 +1,1209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Claim Buddy — TA/DA & LTC Claim Filing</title>
+<!-- Fully self-contained: no external fonts, scripts or network calls. Uses the device's
+     system font stack so it renders identically offline when opened straight from a file. -->
+<style>
+  /* Light design system — Perplexity · Linear · Vercel. Legacy var names kept
+     (remapped to light values) so existing inline styles & JS stay intact. */
+  :root{
+    --bg:#FAFAFA; --panel:#FFFFFF; --panel2:#F5F5F5; --bg-code:#F6F8FA; --bg-badge:#F0EFED;
+    --line:#E5E5E5; --line-strong:#D4D4D4;
+    --txt:#0A0A0A; --muted:#666666; --faint:#999999;
+    --accent:#0A0A0A; --accent-hover:#262626; --accent2:#16A34A;
+    --warn:#D97706; --bad:#DC2626; --blue:#2563EB; --chip:#2563EB;
+    --radius-sm:6px; --radius-md:8px; --radius-lg:12px;
+    --shadow-xs:0 1px 2px rgba(0,0,0,.04);
+    --shadow-sm:0 1px 3px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);
+    --shadow-md:0 4px 6px -1px rgba(0,0,0,.06),0 2px 4px -2px rgba(0,0,0,.04);
+    --ring:0 0 0 3px rgba(10,10,10,.10);
+    --font-sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',Roboto,system-ui,sans-serif;
+    --font-mono:'SF Mono','SFMono-Regular',ui-monospace,'Roboto Mono','JetBrains Mono',Menlo,monospace;
+    --ease:cubic-bezier(0.16,1,0.3,1);
+  }
+  *{box-sizing:border-box}
+  /* snappy taps on touch devices (removes 300ms delay, gives feedback) */
+  button,a,summary,label,select,input,.clickable{touch-action:manipulation}
+  button,a,summary,.clickable{-webkit-tap-highlight-color:rgba(10,10,10,.06)}
+  button:active,.clickable:active{opacity:.85}
+  #nojs{display:none}
+  body{margin:0;font-family:var(--font-sans);background:var(--bg);color:var(--txt);
+    font-size:15px;line-height:1.6;letter-spacing:-0.011em;
+    -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility}
+  a{color:var(--accent);text-decoration:underline;text-underline-offset:2px}
+  a:hover{color:var(--accent-hover)}
+  ::-webkit-scrollbar{width:8px;height:8px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:var(--line-strong);border-radius:9999px}
+  ::-webkit-scrollbar-thumb:hover{background:var(--muted)}
+  header{background:rgba(255,255,255,.85);backdrop-filter:blur(12px) saturate(180%);
+    -webkit-backdrop-filter:blur(12px) saturate(180%);border-bottom:1px solid var(--line);
+    padding:12px 24px;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:100}
+  header h1{font-size:18px;margin:0;font-weight:600;letter-spacing:-0.02em}
+  header .tag{color:var(--muted);font-size:13px}
+  nav{margin-left:auto;display:flex;gap:6px}
+  button{cursor:pointer;border:1px solid var(--line);background:var(--panel);color:var(--txt);
+    padding:8px 14px;border-radius:var(--radius-md);font-size:13px;font-weight:500;font-family:inherit;
+    box-shadow:var(--shadow-xs);transition:background var(--ease) .12s,border-color var(--ease) .12s,transform var(--ease) .12s}
+  button:hover{background:var(--panel2);border-color:var(--line-strong)}
+  button.primary{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:600}
+  button.primary:hover{background:var(--accent-hover);transform:translateY(-0.5px)}
+  button.green{background:var(--accent2);color:#fff;border-color:var(--accent2);font-weight:600}
+  button.green:hover{background:#15803D;transform:translateY(-0.5px)}
+  button.ghost{background:transparent;border-color:transparent;color:var(--muted);box-shadow:none}
+  button.ghost:hover{background:var(--panel2);color:var(--txt);border-color:transparent}
+  button.danger{border-color:var(--bad);color:var(--bad);background:var(--panel)}
+  button.danger:hover{background:#FEF2F2;border-color:var(--bad)}
+  main{max-width:1080px;margin:0 auto;padding:24px}
+  .hidden{display:none!important}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-lg);
+    padding:20px;margin-bottom:18px;transition:border-color var(--ease) .2s,box-shadow var(--ease) .2s}
+  .card h2{margin:0 0 14px;font-size:14px;font-weight:600;letter-spacing:-0.01em;
+    border-bottom:1px solid var(--line);padding-bottom:10px}
+  .grid{display:grid;gap:12px}
+  .g2{grid-template-columns:1fr 1fr}
+  .g3{grid-template-columns:1fr 1fr 1fr}
+  .g4{grid-template-columns:repeat(4,1fr)}
+  label{display:block;font-size:12px;color:var(--muted);font-weight:500;margin-bottom:4px}
+  input,select,textarea{width:100%;background:var(--panel);border:1px solid var(--line);
+    color:var(--txt);padding:9px 12px;border-radius:var(--radius-md);font-size:14px;font-family:inherit;
+    transition:border-color var(--ease) .12s,box-shadow var(--ease) .12s}
+  input:hover,select:hover,textarea:hover{border-color:var(--line-strong)}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);box-shadow:var(--ring)}
+  input::placeholder{color:var(--faint)}
+  input[readonly]{background:var(--panel2);color:var(--muted)}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+  th{color:var(--faint);font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+  tbody tr:hover{background:var(--bg)}
+  td input,td select{padding:6px 8px}
+  .row-tools{display:flex;gap:8px;margin-top:10px}
+  .pill{display:inline-flex;align-items:center;padding:2px 9px;border-radius:9999px;font-size:11px;font-weight:500}
+  .pill.ok{background:#ECFDF5;color:#065F46}
+  .pill.cut{background:#FFFBEB;color:#92400E}
+  .pill.draft{background:var(--bg-badge);color:#525252}
+  .pill.submitted{background:#EFF6FF;color:#1E40AF}
+  .muted{color:var(--muted)}
+  .right{text-align:right}
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}
+  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-lg);padding:18px;
+    transition:border-color var(--ease) .2s,box-shadow var(--ease) .2s}
+  .kpi:hover{border-color:var(--line-strong);box-shadow:var(--shadow-sm)}
+  .kpi .n{font-size:24px;font-weight:600;font-family:var(--font-mono);letter-spacing:-0.02em}
+  .kpi .l{font-size:12px;color:var(--muted);margin-top:4px}
+  .note{font-size:13px;color:#92400E;background:#FFFBEB;border:1px solid #FDE68A;
+    border-radius:var(--radius-md);padding:10px 14px;margin-bottom:16px}
+  .note a{color:#92400E}
+  .calc{background:var(--bg-code);border:1px solid var(--line);border-radius:var(--radius-md);
+    padding:10px 12px;font-size:12px;color:var(--muted)}
+  .calc b{color:var(--txt);font-family:var(--font-mono);font-weight:500}
+  .totals{display:grid;grid-template-columns:1fr auto;gap:6px 24px;font-size:14px}
+  .totals .right{font-family:var(--font-mono)}
+  .totals .big{font-size:20px;font-weight:600;color:var(--accent2)}
+  .filebadge{font-size:11px;color:var(--accent2);margin-top:4px}
+  .cl.list-row{display:grid;grid-template-columns:1.4fr .8fr .9fr .8fr .7fr auto;gap:10px;
+    align-items:center;padding:14px;border:1px solid var(--line);border-radius:var(--radius-lg);
+    background:var(--panel);margin-bottom:8px;transition:border-color var(--ease) .2s,box-shadow var(--ease) .2s}
+  .clickable{cursor:pointer}
+  .clickable:hover{border-color:var(--line-strong);box-shadow:var(--shadow-sm)}
+  .small{font-size:12px}
+  details summary{cursor:pointer;color:var(--blue);font-size:12px;margin-bottom:8px}
+  @media(max-width:720px){.g2,.g3,.g4,.kpis{grid-template-columns:1fr}}
+
+  /* ---------- MOBILE (≤640px) ---------- */
+  @media(max-width:640px){
+    body{font-size:15px}
+    header{padding:10px 14px;flex-wrap:wrap;gap:8px}
+    header h1{font-size:16px}
+    header .tag{display:none}
+    nav{margin-left:0;width:100%;display:grid;grid-template-columns:1fr 1fr;gap:6px}
+    nav button{width:100%;padding:10px 8px}
+    main{padding:14px 12px}
+    .card{padding:14px 12px}
+    /* large, zoom-proof inputs */
+    input,select,textarea{font-size:16px;padding:11px 12px}
+    td input,td select{font-size:16px;padding:10px 10px}
+    button{padding:11px 14px}
+
+    /* tables reflow into stacked label/value cards */
+    table thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+    table,table tbody,table tr,table td{display:block;width:100%}
+    table tr{border:1px solid var(--line);border-radius:10px;background:var(--panel2);
+      padding:8px 10px;margin-bottom:12px}
+    table td{display:flex;align-items:center;gap:10px;border:none;padding:6px 2px}
+    table td::before{content:attr(data-label);flex:0 0 40%;color:var(--muted);
+      font-size:12px;font-weight:600;line-height:1.2}
+    table td:not([data-label])::before{content:""}     /* del/empty cells */
+    table td input,table td select{flex:1 1 58%;width:auto}
+    table td.right,table td .right{text-align:left}
+    /* delete button cell: right-align */
+    table td:last-child:not([data-label]){justify-content:flex-end;padding-top:2px}
+    table td:last-child .delrow{width:auto;padding:8px 16px}
+    /* file inputs sit on their own line */
+    .filecopy{flex:1 1 100%;font-size:13px}
+
+    .cl.list-row{grid-template-columns:1fr;gap:6px}
+    .cl.list-row .right{text-align:left}
+    .cl.list-row .row-tools{justify-content:flex-start}
+    .totals{font-size:15px}
+    .row-tools{flex-wrap:wrap}
+    .row-tools button{flex:1 1 auto}
+  }
+
+  /* ---------- PRINT / PDF format ---------- */
+  #printArea{display:none}
+  @media print{
+    body *{visibility:hidden}
+    #printArea,#printArea *{visibility:visible}
+    #printArea{display:block!important;position:absolute;left:0;top:0;width:100%;
+      color:#000;background:#fff;font-size:12px;padding:0}
+    @page{size:A4;margin:14mm}
+  }
+  #printArea{color:#000;background:#fff;font-family:"Times New Roman",Georgia,serif}
+  .pdoc{max-width:760px;margin:0 auto}
+  .pdoc h1{font-size:16px;text-align:center;margin:0}
+  .pdoc .sub{text-align:center;font-size:12px;margin:2px 0 14px}
+  .pdoc .meta td{border:1px solid #000;padding:4px 6px;font-size:12px}
+  .pdoc table{border-collapse:collapse;width:100%}
+  .pdoc .bills th,.pdoc .bills td{border:1px solid #000;padding:4px 6px;font-size:11px;color:#000}
+  .pdoc .bills th{background:#eee}
+  .pdoc .sec{font-weight:700;margin:14px 0 6px;font-size:13px;border-bottom:1px solid #000}
+  .pdoc .sign{margin-top:40px;display:flex;justify-content:space-between;font-size:12px}
+</style>
+</head>
+<body>
+<noscript>
+  <div style="margin:0;padding:16px 20px;background:#FEF2F2;color:#991B1B;border-bottom:1px solid #FCA5A5;font-family:sans-serif;font-size:15px;line-height:1.5">
+    <b>⚠️ This app needs JavaScript to run.</b><br>
+    You're opening the file in a viewer that has JavaScript turned off (common when tapping an
+    <code>.html</code> file in a phone's file manager). Please <b>open it in a web browser</b> instead —
+    on Android tap “⋮ → Open in Chrome”, on iPhone open it in Safari. Then all buttons will work.
+  </div>
+</noscript>
+<header>
+  <h1>📋 Claim Buddy</h1>
+  <span class="tag">TA/DA &amp; LTC claim filing · single-file local app</span>
+  <nav>
+    <button id="navDash" class="primary">Dashboard</button>
+    <button id="navNew">+ TA/DA · LTC</button>
+    <button id="navPd">+ Permanent Duty</button>
+    <button id="navRules" class="ghost">Entitlement Rules</button>
+  </nav>
+</header>
+
+<main>
+  <div class="note">
+    📖 <b>Rules sourced from Defence Services Travel Regulations, Edition 2025</b> (TR 114A · TR 57 · TR 62 · Ch.4 LTC).
+    Ceilings rise 25% whenever DA rises 50%. Figures are editable on the
+    <a href="#" id="goRules" style="color:var(--accent)">Entitlement Rules</a> tab, or override per-claim in the form.
+    See the wiki (<code>wiki/</code>) for full rule references.
+  </div>
+
+  <!-- ===================== DASHBOARD ===================== -->
+  <section id="viewDash">
+    <div class="kpis">
+      <div class="kpi"><div class="n" id="kTotal">0</div><div class="l">Total claims</div></div>
+      <div class="kpi"><div class="n" id="kDraft">0</div><div class="l">Drafts</div></div>
+      <div class="kpi"><div class="n" id="kAmt">₹0</div><div class="l">Total admissible</div></div>
+      <div class="kpi"><div class="n" id="kCut">₹0</div><div class="l">Total disallowed</div></div>
+    </div>
+    <div class="card">
+      <h2>Your Claims</h2>
+      <div id="claimList"></div>
+      <div id="emptyMsg" class="muted small">No claims yet. Click <b>+ New Claim</b> to start.</div>
+    </div>
+  </section>
+
+  <!-- ===================== NEW / EDIT CLAIM ===================== -->
+  <section id="viewForm" class="hidden">
+    <div class="card">
+      <h2>Traveller &amp; Travel Details</h2>
+      <div class="grid g3">
+        <div><label>Employee name</label><input id="f_name"></div>
+        <div><label>Designation</label><input id="f_desig"></div>
+        <div><label>Office / Department</label><input id="f_office"></div>
+      </div>
+      <div class="grid g4" style="margin-top:12px">
+        <div><label>Pay Level (7th CPC)</label>
+          <select id="f_level"></select></div>
+        <div><label>Type of travel</label>
+          <select id="f_type">
+            <option value="tour">Official Tour (TA/DA)</option>
+            <option value="local">Local Office Travel</option>
+            <option value="ltc">LTC</option>
+          </select></div>
+        <div><label>Claim / Tour reference no.</label><input id="f_ref"></div>
+        <div><label>Sanction / Order no.</label><input id="f_sanction"></div>
+      </div>
+      <div class="grid g4" style="margin-top:12px">
+        <div><label>From (place)</label><input id="f_from"></div>
+        <div><label>To (place)</label><input id="f_to"></div>
+        <div><label>Departure date</label><input id="f_dep" type="date"></div>
+        <div><label>Return date</label><input id="f_ret" type="date"></div>
+      </div>
+    </div>
+
+    <!-- Entitlements (auto by level, editable) -->
+    <div class="card">
+      <h2>Entitlements <span class="muted small">(defaults from pay level — editable)</span></h2>
+      <div class="grid g4">
+        <div><label>Travel class entitlement</label><input id="e_class"></div>
+        <div><label>Hotel ceiling / day (₹)</label><input id="e_hotel" type="number"></div>
+        <div><label>Food / DA rate / day (₹)</label><input id="e_food" type="number"></div>
+        <div><label>Taxi / local conveyance / day (₹)</label><input id="e_taxi" type="number"></div>
+      </div>
+      <div class="row-tools">
+        <button class="ghost small" id="btnResetEnt">↺ Reset to level defaults</button>
+      </div>
+    </div>
+
+    <!-- Travel fare -->
+    <div class="card">
+      <h2>Travel Fare</h2>
+      <table id="fareTbl">
+        <thead><tr><th>Mode</th><th>Sector (from–to)</th><th>Class travelled</th>
+          <th>Person</th><th class="right">Amount (₹)</th><th>Bill copy</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="row-tools"><button id="addFare" class="ghost small">+ Add fare row</button></div>
+    </div>
+
+    <!-- Hotel stay (hidden for LTC/local) -->
+    <div class="card" id="hotelCard">
+      <h2>Hotel / Lodging Stay</h2>
+      <table id="hotelTbl">
+        <thead><tr><th>Hotel name</th><th>City</th><th>Check-in</th><th>Check-out</th>
+          <th>Nights</th><th class="right">Rate/night (₹)</th><th class="right">GST/day (₹)</th>
+          <th>Bill no.</th><th class="right">Bill total (₹)</th><th>Bill copy</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="row-tools"><button id="addHotel" class="ghost small">+ Add hotel bill</button></div>
+      <div class="calc" id="hotelCalc"></div>
+    </div>
+
+    <!-- Taxi / local conveyance -->
+    <div class="card" id="taxiCard">
+      <h2>Station / Airport Transfers <span class="muted small">(taxi to &amp; from terminal at both stations)</span></h2>
+      <table id="xferTbl">
+        <thead><tr><th>Leg</th><th>From → To</th><th>Mode</th><th>Date</th><th>Bill no.</th>
+          <th class="right">Amount (₹)</th><th>Bill copy</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="calc muted small">Four standard legs: residence/office ⇄ terminal at the origin station,
+        and terminal ⇄ hotel/duty point at the destination station.</div>
+
+      <h2 style="margin-top:18px">Local / Within-City Taxi <span class="muted small">(by date range — total = days × rate/day)</span></h2>
+      <table id="taxiTbl">
+        <thead><tr><th>City</th><th>From date</th><th>To date</th><th>Days</th>
+          <th class="right">Rate/day (₹)</th><th class="right">Total (₹)</th><th>Bill no.</th>
+          <th>Bill copy</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="row-tools"><button id="addTaxi" class="ghost small">+ Add taxi (date range)</button></div>
+      <div class="calc" id="taxiCalc"></div>
+    </div>
+
+    <!-- Food / Daily Allowance -->
+    <div class="card" id="foodCard">
+      <h2>Food / Daily Allowance <span class="muted small">(lump-sum per TR 114A — no food bills/vouchers required)</span></h2>
+      <div class="grid g4">
+        <div><label>No. of days on tour</label><input id="da_days" type="number" min="0" step="0.5" value="0"></div>
+        <div><label>Lump-sum rate/day (₹)</label><input id="da_rate" type="number" readonly></div>
+        <div><label>% by absence from HQ (TR 114A.5)</label>
+          <select id="da_pct">
+            <option value="1">100% (&gt; 12 hrs)</option>
+            <option value="0.7">70% (6–12 hrs)</option>
+            <option value="0.3">30% (&lt; 6 hrs)</option>
+          </select></div>
+        <div><label>Free board/lodging? (JCO/NCO/OR)</label>
+          <select id="da_bills"><option value="no">No — full DA</option><option value="yes">Yes — reduced DA</option></select></div>
+      </div>
+      <div class="calc" id="daCalc"></div>
+    </div>
+
+    <!-- LTC family (LTC only) -->
+    <div class="card hidden" id="ltcCard">
+      <h2>LTC — Family Members</h2>
+      <table id="ltcTbl">
+        <thead><tr><th>Name</th><th>Relation</th><th>Age</th><th>Class</th>
+          <th class="right">Fare (₹)</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="row-tools"><button id="addLtc" class="ghost small">+ Add family member</button></div>
+      <div class="grid g3" style="margin-top:12px">
+        <div><label>LTC type</label><select id="ltc_type">
+          <option>Home Town</option><option>Anywhere in India</option></select></div>
+        <div><label>Block year</label><input id="ltc_block" placeholder="e.g. 2022–2025"></div>
+        <div><label>Advance drawn (₹)</label><input id="ltc_adv" type="number" value="0"></div>
+      </div>
+    </div>
+
+    <!-- Other + advance -->
+    <div class="card">
+      <h2>Other Charges &amp; Advance</h2>
+      <table id="otherTbl">
+        <thead><tr><th>Description</th><th>Bill no.</th><th class="right">Amount (₹)</th><th>Bill copy</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="row-tools"><button id="addOther" class="ghost small">+ Add charge</button></div>
+      <div class="grid g3" style="margin-top:12px">
+        <div><label>Advance drawn (₹)</label><input id="f_adv" type="number" value="0"></div>
+        <div><label>Status</label><select id="f_status">
+          <option value="draft">Draft</option><option value="submitted">Submitted</option></select></div>
+        <div><label>Remarks</label><input id="f_remarks"></div>
+      </div>
+    </div>
+
+    <!-- Summary -->
+    <div class="card">
+      <h2>Claim Summary</h2>
+      <div class="totals" id="summary"></div>
+    </div>
+
+    <div class="row-tools" style="justify-content:flex-end">
+      <button class="ghost" id="btnCancel">Cancel</button>
+      <button class="green" id="btnSave">💾 Save Claim</button>
+      <button class="primary" id="btnPdf">🖨️ Generate Claim PDF</button>
+    </div>
+  </section>
+
+  <!-- ===================== PERMANENT DUTY (TRANSFER) ===================== -->
+  <section id="viewPd" class="hidden">
+    <div class="note">
+      🚚 <b>Permanent Duty / Transfer claim</b> (Chapter Two). No DA is admissible on permanent moves (TR 59).
+      Heads: travel fare (self &amp; family), carriage of personal effects (TR 61A), vehicle transport (TR 61.4),
+      and Composite Transfer Grant — CTG (TR 87).
+    </div>
+
+    <div class="card">
+      <h2>Officer &amp; Transfer Details</h2>
+      <div class="grid g3">
+        <div><label>Employee name</label><input id="p_name"></div>
+        <div><label>Designation / Rank</label><input id="p_desig"></div>
+        <div><label>Office / Unit</label><input id="p_office"></div>
+      </div>
+      <div class="grid g4" style="margin-top:12px">
+        <div><label>Pay Level</label><select id="p_level"></select></div>
+        <div><label>Last month basic pay (₹)<br><span class="muted" style="font-size:10px">excl. NPA &amp; MSP</span></label><input id="p_basic" type="number" value="0"></div>
+        <div><label>Transfer order no.</label><input id="p_order"></div>
+        <div><label>Date of order</label><input id="p_orderdt" type="date"></div>
+      </div>
+      <div class="grid g4" style="margin-top:12px">
+        <div><label>Old station</label><input id="p_old"></div>
+        <div><label>New station</label><input id="p_new"></div>
+        <div><label>Date relieved</label><input id="p_rel" type="date"></div>
+        <div><label>Date joined</label><input id="p_join" type="date"></div>
+      </div>
+      <div class="grid g4" style="margin-top:12px">
+        <div><label>Distance between stations (km)</label><input id="p_dist" type="number" value="0"></div>
+        <div><label>A&amp;N / Lakshadweep island route?</label>
+          <select id="p_island"><option value="no">No</option><option value="yes">Yes (CTG 100%)</option></select></div>
+        <div><label>Transfer in public interest?</label>
+          <select id="p_public"><option value="yes">Yes</option><option value="no">No (no CTG)</option></select></div>
+        <div><label>Change of residence involved?</label>
+          <select id="p_resi"><option value="yes">Yes</option><option value="no">No</option></select></div>
+      </div>
+    </div>
+
+    <!-- Family travel fare -->
+    <div class="card">
+      <h2>Travel Fare — Self &amp; Family <span class="muted small">(entitled class)</span></h2>
+      <table id="pFareTbl">
+        <thead><tr><th>Name</th><th>Relation</th><th>Age</th><th>Mode</th><th>Class</th>
+          <th>Sector</th><th class="right">Fare (₹)</th><th>Bill copy</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="row-tools"><button id="addPFare" class="ghost small">+ Add person</button></div>
+    </div>
+
+    <!-- Personal effects -->
+    <div class="card">
+      <h2>Carriage of Personal Effects <span class="muted small">(TR 61A)</span></h2>
+      <div class="grid g4">
+        <div><label>Mode</label><select id="pe_mode"><option value="road">By Road</option><option value="train">By Train/Steamer</option></select></div>
+        <div><label>Entitled weight (kg)</label><input id="pe_entwt" type="number"></div>
+        <div><label>Actual weight carried (kg)</label><input id="pe_wt" type="number" value="0"></div>
+        <div><label>Rate / km (road) (₹)</label><input id="pe_rate" type="number"></div>
+      </div>
+      <div class="grid g4" style="margin-top:12px">
+        <div><label>Distance (km, for road)</label><input id="pe_dist" type="number" value="0"></div>
+        <div><label>Actual cost — train/steamer (₹)</label><input id="pe_train" type="number" value="0"></div>
+        <div><label>GST on transport (₹)</label><input id="pe_gst" type="number" value="0"></div>
+        <div><label>Bill no.</label><input id="pe_bn"></div>
+      </div>
+      <div class="calc" id="peCalc"></div>
+    </div>
+
+    <!-- Vehicle transport -->
+    <div class="card">
+      <h2>Conveyance / Vehicle Transport <span class="muted small">(TR 61.4)</span></h2>
+      <table id="pVehTbl">
+        <thead><tr><th>Vehicle</th><th>Reg. no.</th><th>Mode of transport</th><th>Bill no.</th>
+          <th class="right">Amount (₹)</th><th>Bill copy</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="row-tools"><button id="addPVeh" class="ghost small">+ Add vehicle</button></div>
+    </div>
+
+    <!-- CTG -->
+    <div class="card">
+      <h2>Composite Transfer Grant (CTG) <span class="muted small">(TR 87)</span></h2>
+      <div class="grid g4">
+        <div><label>Basis</label><input id="ctg_basis" readonly></div>
+        <div><label>% of basic pay</label><input id="ctg_pct" readonly></div>
+        <div><label>Computed CTG (₹)</label><input id="ctg_auto" readonly></div>
+        <div><label>CTG claimed (₹) — editable</label><input id="ctg_amt" type="number" value="0"></div>
+      </div>
+      <div class="calc" id="ctgCalc"></div>
+    </div>
+
+    <!-- Other + advance -->
+    <div class="card">
+      <h2>Other Charges &amp; Advance</h2>
+      <table id="pOtherTbl">
+        <thead><tr><th>Description</th><th>Bill no.</th><th class="right">Amount (₹)</th><th>Bill copy</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="row-tools"><button id="addPOther" class="ghost small">+ Add charge</button></div>
+      <div class="grid g3" style="margin-top:12px">
+        <div><label>Advance drawn (₹)</label><input id="p_adv" type="number" value="0"></div>
+        <div><label>Status</label><select id="p_status"><option value="draft">Draft</option><option value="submitted">Submitted</option></select></div>
+        <div><label>Remarks</label><input id="p_remarks"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Claim Summary</h2>
+      <div class="totals" id="pSummary"></div>
+    </div>
+
+    <div class="row-tools" style="justify-content:flex-end">
+      <button class="ghost" id="pCancel">Cancel</button>
+      <button class="green" id="pSave">💾 Save Claim</button>
+      <button class="primary" id="pPdf">🖨️ Generate Claim PDF</button>
+    </div>
+  </section>
+
+  <!-- ===================== RULES ===================== -->
+  <section id="viewRules" class="hidden">
+    <div class="card">
+      <h2>Entitlement Rules by Pay Level <span class="muted small">(edit to match your handbook)</span></h2>
+      <table id="rulesTbl">
+        <thead><tr><th>Pay Level</th><th>Travel class</th><th class="right">Hotel/day ₹</th>
+          <th class="right">Food/DA/day ₹</th><th class="right">Taxi/day ₹</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="row-tools">
+        <button class="green" id="btnSaveRules">💾 Save rules</button>
+        <button class="ghost" id="btnRestoreRules">↺ Restore DSR 2025 defaults</button>
+      </div>
+      <details style="margin-top:14px">
+        <summary>Source: Defence Services Travel Regulations, Edition 2025</summary>
+        <p class="muted small">Hotel/taxi/food ceilings are from <b>TR 114A</b>; rail class from <b>TR 57</b>,
+        air class from <b>TR 62</b>. Food is paid as a <b>lump-sum DA (no vouchers)</b>, regulated by absence
+        from HQ — &lt;6h=30%, 6–12h=70%, &gt;12h=100% (TR 114A.5). For Level 8 &amp; below, hotel &amp; taxi up to
+        ceiling are payable on <b>self-certification</b> (no vouchers); Class-X city hotel ceiling is ₹1000/day
+        on vouchers. All ceilings rise 25% whenever DA rises 50%. LTC (Ch.4) reimburses entitled-class fare for
+        self &amp; family only — no hotel/DA. <b>Confirm every figure against the latest amendments before filing.</b></p>
+      </details>
+    </div>
+  </section>
+</main>
+
+<!-- Print target -->
+<div id="printArea"></div>
+
+<script>
+"use strict";
+/* ===== DEFAULT RULESET — DSR Travel Regulations 2025 + updated allowances =====
+   Hotel = room ceiling (taxes/GST added separately, fully claimable).
+   Food ceilings updated per user (2026-06-24). Rail TR 57, Air TR 62. Editable. ===== */
+const DEFAULT_RULES = [
+  {level:"14 & Above", class:"Air: Business/Club · Rail: Executive/AC-I", hotel:7500, food:1500, taxi:0,   taxiNote:"AC taxi as per actual (within city)"},
+  {level:"12 & 13",    class:"Air: Economy · Rail: Executive/AC-I",       hotel:4500, food:1250, taxi:0,   taxiNote:"Non-AC taxi up to 50 km/day within city (actuals)"},
+  {level:"9 to 11",    class:"Air: Economy · Rail: AC-II / CC",           hotel:2250, food:1125, taxi:338, taxiNote:"Non-AC taxi up to ₹338/day"},
+  {level:"6 to 8",     class:"Air: Economy · Rail: AC-II / CC",           hotel:750,  food:1000, taxi:225, taxiNote:"Non-AC taxi up to ₹225/day"},
+  {level:"5 & Below",  class:"Rail: AC-III / Chair car (no air)",         hotel:450,  food:625,  taxi:113, taxiNote:"Non-AC taxi up to ₹113/day"}
+];
+
+/* ================= storage ================= */
+const LS_CLAIMS="cb_claims_v1", LS_RULES="cb_rules_v2"; // v2: updated food ceilings 2026-06-24
+let rules = load(LS_RULES) || JSON.parse(JSON.stringify(DEFAULT_RULES));
+let claims = load(LS_CLAIMS) || [];
+let editId = null; // id of claim being edited
+function load(k){try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}}
+function save(k,v){localStorage.setItem(k,JSON.stringify(v))}
+const money = n => "₹"+ (Number(n)||0).toLocaleString("en-IN",{maximumFractionDigits:2});
+const uid = () => Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const $ = id => document.getElementById(id);
+
+/* ================= navigation ================= */
+function show(view){
+  ["viewDash","viewForm","viewPd","viewRules"].forEach(v=>$(v).classList.add("hidden"));
+  $(view).classList.remove("hidden");
+  ["navDash","navNew","navPd","navRules"].forEach(b=>$(b).classList.remove("primary"));
+  window.scrollTo(0,0);   // tab/link switches land at the top (clearer on mobile)
+}
+$("navDash").onclick=()=>{renderDash();show("viewDash");$("navDash").classList.add("primary")};
+$("navNew").onclick=()=>{newClaim()};
+$("navPd").onclick=()=>{newPd()};
+$("navRules").onclick=()=>{renderRules();show("viewRules")};
+$("goRules").onclick=(e)=>{e.preventDefault();renderRules();show("viewRules")};
+
+/* ================= rules tab ================= */
+function levelOptions(){
+  $("f_level").innerHTML = rules.map((r,i)=>`<option value="${i}">Level ${r.level}</option>`).join("");
+  $("p_level").innerHTML = rules.map((r,i)=>`<option value="${i}">Level ${r.level}</option>`).join("");
+}
+function renderRules(){
+  $("rulesTbl").querySelector("tbody").innerHTML = rules.map((r,i)=>`
+    <tr>
+      <td><input value="${r.level}" data-i="${i}" data-k="level"></td>
+      <td><input value="${r.class}" data-i="${i}" data-k="class"></td>
+      <td><input type="number" value="${r.hotel}" data-i="${i}" data-k="hotel"></td>
+      <td><input type="number" value="${r.food}" data-i="${i}" data-k="food"></td>
+      <td><input type="number" value="${r.taxi}" data-i="${i}" data-k="taxi"></td>
+    </tr>`).join("");
+  rowsOf("rulesTbl").forEach(labelizeRow);
+}
+$("btnSaveRules").onclick=()=>{
+  $("rulesTbl").querySelectorAll("input").forEach(inp=>{
+    const i=+inp.dataset.i,k=inp.dataset.k;
+    rules[i][k] = (k==="level"||k==="class")? inp.value : (+inp.value||0);
+  });
+  save(LS_RULES,rules); levelOptions(); alert("Rules saved.");
+};
+$("btnRestoreRules").onclick=()=>{
+  if(confirm("Restore DSR 2025 default rules? Your edits will be lost.")){
+    rules=JSON.parse(JSON.stringify(DEFAULT_RULES));save(LS_RULES,rules);renderRules();levelOptions();
+  }
+};
+
+/* ================= dynamic table rows ================= */
+function fileCell(existing){
+  const id="file_"+uid();
+  return `<input type="file" id="${id}" class="filecopy" accept="image/*,.pdf" style="font-size:11px">
+          <div class="filebadge">${existing?("📎 "+existing):""}</div>`;
+}
+function delBtn(){return `<button class="ghost small delrow">✕</button>`}
+
+function addFareRow(d={}){
+  const tb=$("fareTbl").querySelector("tbody");
+  const tr=document.createElement("tr");
+  tr.innerHTML=`
+    <td><select class="m"><option>Air</option><option>Train</option><option>Bus</option><option>Own car</option><option>Taxi</option></select></td>
+    <td><input class="sec" value="${d.sector||''}"></td>
+    <td><input class="cls" value="${d.cls||''}"></td>
+    <td><input class="per" value="${d.per||'Self'}"></td>
+    <td><input class="amt right" type="number" value="${d.amt||0}"></td>
+    <td>${fileCell(d.file)}</td><td>${delBtn()}</td>`;
+  tb.appendChild(tr); if(d.m) tr.querySelector(".m").value=d.m; wire(tr);
+}
+function addHotelRow(d={}){
+  const tb=$("hotelTbl").querySelector("tbody");
+  const tr=document.createElement("tr");
+  tr.innerHTML=`
+    <td><input class="hn" value="${d.hn||''}"></td>
+    <td><input class="hc" value="${d.hc||''}"></td>
+    <td><input class="ci" type="date" value="${d.ci||''}"></td>
+    <td><input class="co" type="date" value="${d.co||''}"></td>
+    <td><input class="nt right" type="number" value="${d.nt||1}" style="width:60px"></td>
+    <td><input class="rt right" type="number" value="${d.rt||0}"></td>
+    <td><input class="gst right" type="number" value="${d.gst||0}"></td>
+    <td><input class="bn" value="${d.bn||''}"></td>
+    <td><input class="ba right" readonly value="${d.ba||0}"></td>
+    <td>${fileCell(d.file)}</td><td>${delBtn()}</td>`;
+  tb.appendChild(tr); wire(tr);
+}
+const XFER_LEGS = [
+  {key:"o_out", label:"Origin · Office/Residence → Terminal",  ft:"Residence → Airport/Rly Stn"},
+  {key:"d_in",  label:"Destination · Terminal → Hotel/Duty",   ft:"Airport/Rly Stn → Hotel/Duty point"},
+  {key:"d_out", label:"Destination · Hotel/Duty → Terminal",   ft:"Hotel/Duty point → Airport/Rly Stn"},
+  {key:"o_in",  label:"Origin · Terminal → Office/Residence",  ft:"Airport/Rly Stn → Residence"}
+];
+function addXferRow(leg,d={}){
+  const tb=$("xferTbl").querySelector("tbody");
+  const tr=document.createElement("tr"); tr.dataset.key=leg.key;
+  tr.innerHTML=`
+    <td class="small">${leg.label}</td>
+    <td><input class="ft" value="${d.ft!==undefined?d.ft:leg.ft}"></td>
+    <td><select class="md"><option>Taxi</option><option>Auto-rickshaw</option><option>Own car</option><option>Bus</option></select></td>
+    <td><input class="dt" type="date" value="${d.dt||''}"></td>
+    <td><input class="bn" value="${d.bn||''}"></td>
+    <td><input class="amt right" type="number" value="${d.amt||0}"></td>
+    <td>${fileCell(d.file)}</td>`;
+  tb.appendChild(tr); if(d.md) tr.querySelector(".md").value=d.md; wire(tr);
+}
+function addStdXfers(saved){
+  $("xferTbl").querySelector("tbody").innerHTML="";
+  XFER_LEGS.forEach(leg=>addXferRow(leg,(saved&&saved.find(x=>x.key===leg.key))||{}));
+}
+function addTaxiRow(d={}){
+  const tb=$("taxiTbl").querySelector("tbody");
+  const tr=document.createElement("tr");
+  tr.innerHTML=`
+    <td><input class="cy" value="${d.cy||''}"></td>
+    <td><input class="fd" type="date" value="${d.fd||''}"></td>
+    <td><input class="td2" type="date" value="${d.td||''}"></td>
+    <td><input class="dys right" readonly style="width:55px" value="${d.dys||0}"></td>
+    <td><input class="rt right" type="number" value="${d.rt||0}"></td>
+    <td><input class="tot right" readonly value="${d.tot||0}"></td>
+    <td><input class="bn" value="${d.bn||''}"></td>
+    <td>${fileCell(d.file)}</td><td>${delBtn()}</td>`;
+  tb.appendChild(tr); wire(tr);
+}
+function addLtcRow(d={}){
+  const tb=$("ltcTbl").querySelector("tbody");
+  const tr=document.createElement("tr");
+  tr.innerHTML=`
+    <td><input class="nm" value="${d.nm||''}"></td>
+    <td><input class="rel" value="${d.rel||''}"></td>
+    <td><input class="age right" type="number" value="${d.age||''}" style="width:60px"></td>
+    <td><input class="cls" value="${d.cls||''}"></td>
+    <td><input class="amt right" type="number" value="${d.amt||0}"></td>
+    <td>${delBtn()}</td>`;
+  tb.appendChild(tr); wire(tr);
+}
+function addOtherRow(d={}){
+  const tb=$("otherTbl").querySelector("tbody");
+  const tr=document.createElement("tr");
+  tr.innerHTML=`
+    <td><input class="ds" value="${d.ds||''}"></td>
+    <td><input class="bn" value="${d.bn||''}"></td>
+    <td><input class="amt right" type="number" value="${d.amt||0}"></td>
+    <td>${fileCell(d.file)}</td><td>${delBtn()}</td>`;
+  tb.appendChild(tr); wire(tr);
+}
+// On mobile, tables reflow to cards; copy each column header onto its cell as a label.
+function labelizeRow(tr){
+  const table=tr.closest("table"); if(!table)return;
+  const ths=[...table.querySelectorAll("thead th")].map(th=>th.textContent.trim());
+  [...tr.children].forEach((td,i)=>{ if(ths[i]) td.setAttribute("data-label",ths[i]); });
+}
+function wire(tr){
+  labelizeRow(tr);
+  tr.querySelector(".delrow")?.addEventListener("click",()=>{tr.remove();recalc()});
+  tr.querySelectorAll("input,select").forEach(el=>el.addEventListener("input",recalc));
+  tr.querySelector(".filecopy")?.addEventListener("change",e=>{
+    const f=e.target.files[0]; if(!f)return;
+    const r=new FileReader();
+    r.onload=()=>{tr._fileData=r.result; tr._fileName=f.name;
+      tr.querySelector(".filebadge").textContent="📎 "+f.name; recalc();};
+    r.readAsDataURL(f);
+  });
+}
+$("addFare").onclick=()=>{addFareRow();recalc()};
+$("addHotel").onclick=()=>{addHotelRow();recalc()};
+$("addTaxi").onclick=()=>{addTaxiRow();recalc()};
+$("addLtc").onclick=()=>{addLtcRow();recalc()};
+$("addOther").onclick=()=>{addOtherRow();recalc()};
+
+/* ================= entitlement defaults ================= */
+function applyLevelDefaults(){
+  const r=rules[+$("f_level").value]||rules[0];
+  $("e_class").value=r.class; $("e_hotel").value=r.hotel;
+  $("e_food").value=r.food;   $("e_taxi").value=r.taxi;
+  $("da_rate").value=r.food;  recalc();
+}
+$("f_level").onchange=applyLevelDefaults;
+$("btnResetEnt").onclick=applyLevelDefaults;
+$("e_food").oninput=()=>{$("da_rate").value=$("e_food").value;recalc()};
+["e_hotel","e_taxi","e_class"].forEach(id=>$(id).oninput=recalc);
+$("f_type").onchange=()=>{toggleCardsByType();recalc()};
+["da_days","da_pct","da_bills","f_adv","ltc_adv"].forEach(id=>$(id).addEventListener("input",recalc));
+
+function toggleCardsByType(){
+  const t=$("f_type").value;
+  const isLtc = t==="ltc", isLocal = t==="local";
+  $("ltcCard").classList.toggle("hidden",!isLtc);
+  $("hotelCard").classList.toggle("hidden",isLtc||isLocal);
+  $("foodCard").classList.toggle("hidden",isLtc);
+}
+
+/* ================= the entitlement engine ================= */
+function rowsOf(tblId){return [...$(tblId).querySelector("tbody").querySelectorAll("tr")]}
+function val(tr,cls){const e=tr.querySelector("."+cls);return e?e.value:""}
+function num(tr,cls){return +val(tr,cls)||0}
+
+function recalc(){
+  const cap = {hotel:+$("e_hotel").value||0, taxi:+$("e_taxi").value||0};
+  let claimed=0, admissible=0, disallowed=0;
+
+  // fare — full reimbursement of entitled class (engine does not cap fare automatically)
+  let fareSum=0;
+  rowsOf("fareTbl").forEach(tr=>fareSum+=num(tr,"amt"));
+  // LTC family fares
+  let ltcSum=0;
+  rowsOf("ltcTbl").forEach(tr=>ltcSum+=num(tr,"amt"));
+
+  // hotel — room tariff capped at ceiling/night; GST fully claimable on top
+  let hClaim=0,hAdm=0,gstSum=0;
+  rowsOf("hotelTbl").forEach(tr=>{
+    const nights=num(tr,"nt"), rate=num(tr,"rt"), gstDay=num(tr,"gst");
+    const roomClaim=nights*rate, gst=nights*gstDay;
+    const billTotal=roomClaim+gst;
+    tr.querySelector(".ba").value=billTotal;       // auto bill total = room + GST
+    const roomAdm=Math.min(rate, cap.hotel)*nights; // ceiling caps room only
+    hClaim+=billTotal; hAdm+=roomAdm+gst; gstSum+=gst;
+  });
+  $("hotelCalc").innerHTML = `Hotel claimed <b>${money(hClaim)}</b> (incl. GST ${money(gstSum)}) · room admissible at ceiling ${money(cap.hotel)}/night + GST fully claimable = <b>${money(hAdm)}</b>`;
+
+  // taxi — local (date-range, days × rate) + station/airport transfers
+  const daysBetween=(a,b)=>{ if(!a||!b)return 0; const d=(new Date(b)-new Date(a))/86400000; return d>=0?Math.floor(d)+1:0; };
+  const taxiRows=rowsOf("taxiTbl");
+  let localClaim=0, localDays=0;
+  taxiRows.forEach(tr=>{
+    const dys=daysBetween(val(tr,"fd"),val(tr,"td2"));
+    const rate=num(tr,"rt");
+    const tot=dys*rate;
+    tr.querySelector(".dys").value=dys;
+    tr.querySelector(".tot").value=tot;
+    localClaim+=tot; localDays+=dys;
+  });
+  // station/airport transfer legs (actuals)
+  let xferClaim=0; rowsOf("xferTbl").forEach(tr=>xferClaim+=num(tr,"amt"));
+  // ceiling applies to local per-day taxi; transfers reimbursed as actuals
+  const localCap = cap.taxi>0 ? cap.taxi*Math.max(localDays,0) : localClaim;
+  const localAdm = cap.taxi>0 ? Math.min(localClaim,localCap) : localClaim;
+  const tClaim = localClaim + xferClaim;
+  const tAdm   = localAdm   + xferClaim;
+  $("taxiCalc").innerHTML =
+    `Local taxi <b>${money(localClaim)}</b> over ${localDays} day(s)` +
+    (cap.taxi>0 ? ` · ceiling ${money(cap.taxi)}/day → admissible ${money(localAdm)}` : ` · actuals`) +
+    ` &nbsp;+&nbsp; station/airport transfers <b>${money(xferClaim)}</b> (actuals)` +
+    ` &nbsp;=&nbsp; total admissible <b>${money(tAdm)}</b>`;
+
+  // food / DA
+  const daDays=+$("da_days").value||0, daRate=+$("da_rate").value||0, pct=+$("da_pct").value;
+  const daAmt = daDays*daRate*pct;
+  $("daCalc").innerHTML = `${daDays} day(s) × ${money(daRate)} × ${(pct*100)}% = <b>${money(daAmt)}</b> &nbsp;·&nbsp; lump-sum DA, no vouchers (TR 114A.4–5)`;
+
+  // other
+  let oSum=0; rowsOf("otherTbl").forEach(tr=>oSum+=num(tr,"amt"));
+
+  const t=$("f_type").value;
+  if(t==="ltc"){
+    claimed = ltcSum + fareSum + oSum;
+    admissible = ltcSum + fareSum + oSum;
+  }else{
+    claimed = fareSum + hClaim + tClaim + daAmt + oSum;
+    admissible = fareSum + hAdm + tAdm + daAmt + oSum;
+  }
+  disallowed = Math.max(0, claimed - admissible);
+  const adv = (+$("f_adv").value||0) + (t==="ltc"?(+$("ltc_adv").value||0):0);
+  const net = admissible - adv;
+
+  $("summary").innerHTML = `
+    <div>Total claimed</div><div class="right">${money(claimed)}</div>
+    <div>Less: disallowed (over ceiling)</div><div class="right" style="color:var(--warn)">– ${money(disallowed)}</div>
+    <div>Total admissible</div><div class="right big">${money(admissible)}</div>
+    <div>Less: advance drawn</div><div class="right">– ${money(adv)}</div>
+    <div><b>Net payable to employee</b></div><div class="right big">${money(net)}</div>`;
+
+  return {claimed,admissible,disallowed,adv,net,fareSum,ltcSum,hClaim,hAdm,tClaim,tAdm,localClaim,localAdm,xferClaim,localDays,daAmt,oSum};
+}
+
+/* ================= collect / load form ================= */
+function collect(){
+  const tr2 = (tbl,fn)=>rowsOf(tbl).map(fn);
+  const fileOf = tr => tr._fileData ? {name:tr._fileName,data:tr._fileData} : (tr._existingFile||null);
+  const c = recalc();
+  return {
+    id: editId||uid(), savedAt:new Date().toISOString(),
+    name:$("f_name").value, desig:$("f_desig").value, office:$("f_office").value,
+    levelIdx:+$("f_level").value, level:rules[+$("f_level").value].level,
+    type:$("f_type").value, ref:$("f_ref").value, sanction:$("f_sanction").value,
+    from:$("f_from").value, to:$("f_to").value, dep:$("f_dep").value, ret:$("f_ret").value,
+    ent:{cls:$("e_class").value,hotel:+$("e_hotel").value,food:+$("e_food").value,taxi:+$("e_taxi").value},
+    fare: tr2("fareTbl",tr=>({m:val(tr,"m"),sector:val(tr,"sec"),cls:val(tr,"cls"),per:val(tr,"per"),amt:num(tr,"amt"),file:fileOf(tr)})),
+    hotel: tr2("hotelTbl",tr=>({hn:val(tr,"hn"),hc:val(tr,"hc"),ci:val(tr,"ci"),co:val(tr,"co"),nt:num(tr,"nt"),rt:num(tr,"rt"),gst:num(tr,"gst"),bn:val(tr,"bn"),ba:num(tr,"ba"),file:fileOf(tr)})),
+    xfer: tr2("xferTbl",tr=>({key:tr.dataset.key,ft:val(tr,"ft"),md:val(tr,"md"),dt:val(tr,"dt"),bn:val(tr,"bn"),amt:num(tr,"amt"),file:fileOf(tr)})),
+    taxi: tr2("taxiTbl",tr=>({cy:val(tr,"cy"),fd:val(tr,"fd"),td:val(tr,"td2"),dys:num(tr,"dys"),rt:num(tr,"rt"),tot:num(tr,"tot"),bn:val(tr,"bn"),file:fileOf(tr)})),
+    ltc: tr2("ltcTbl",tr=>({nm:val(tr,"nm"),rel:val(tr,"rel"),age:val(tr,"age"),cls:val(tr,"cls"),amt:num(tr,"amt")})),
+    ltcMeta:{type:$("ltc_type").value,block:$("ltc_block").value,adv:+$("ltc_adv").value||0},
+    da:{days:+$("da_days").value||0,rate:+$("da_rate").value||0,pct:+$("da_pct").value,bills:$("da_bills").value},
+    other: tr2("otherTbl",tr=>({ds:val(tr,"ds"),bn:val(tr,"bn"),amt:num(tr,"amt"),file:fileOf(tr)})),
+    adv:+$("f_adv").value||0, status:$("f_status").value, remarks:$("f_remarks").value,
+    totals:c
+  };
+}
+
+function newClaim(){
+  editId=null;
+  ["f_name","f_desig","f_office","f_ref","f_sanction","f_from","f_to","f_dep","f_ret","f_remarks","ltc_block"].forEach(id=>$(id).value="");
+  $("f_adv").value=0; $("ltc_adv").value=0; $("da_days").value=0; $("f_status").value="draft";
+  $("f_type").value="tour";
+  ["fareTbl","hotelTbl","taxiTbl","xferTbl","ltcTbl","otherTbl"].forEach(t=>$(t).querySelector("tbody").innerHTML="");
+  $("f_level").value=0; applyLevelDefaults(); toggleCardsByType();
+  addFareRow(); addHotelRow(); addStdXfers(); addTaxiRow(); addOtherRow();
+  recalc(); show("viewForm");
+}
+
+function editClaim(id){
+  const c=claims.find(x=>x.id===id); if(!c)return;
+  editId=id;
+  $("f_name").value=c.name;$("f_desig").value=c.desig;$("f_office").value=c.office;
+  $("f_level").value=c.levelIdx;$("f_type").value=c.type;$("f_ref").value=c.ref;$("f_sanction").value=c.sanction;
+  $("f_from").value=c.from;$("f_to").value=c.to;$("f_dep").value=c.dep;$("f_ret").value=c.ret;
+  $("e_class").value=c.ent.cls;$("e_hotel").value=c.ent.hotel;$("e_food").value=c.ent.food;$("e_taxi").value=c.ent.taxi;
+  $("da_rate").value=c.da.rate;$("da_days").value=c.da.days;$("da_pct").value=c.da.pct;$("da_bills").value=c.da.bills;
+  $("f_adv").value=c.adv;$("f_status").value=c.status;$("f_remarks").value=c.remarks;
+  $("ltc_type").value=c.ltcMeta.type;$("ltc_block").value=c.ltcMeta.block;$("ltc_adv").value=c.ltcMeta.adv;
+  ["fareTbl","hotelTbl","taxiTbl","xferTbl","ltcTbl","otherTbl"].forEach(t=>$(t).querySelector("tbody").innerHTML="");
+  c.fare.forEach(addFareRow); c.hotel.forEach(addHotelRow);
+  addStdXfers(c.xfer); c.taxi.forEach(addTaxiRow);
+  c.ltc.forEach(addLtcRow); c.other.forEach(addOtherRow);
+  // restore existing file badges
+  [["fareTbl",c.fare],["hotelTbl",c.hotel],["xferTbl",c.xfer],["taxiTbl",c.taxi],["otherTbl",c.other]].forEach(([t,arr])=>{
+    rowsOf(t).forEach((tr,i)=>{ if(arr[i]&&arr[i].file){tr._existingFile=arr[i].file;
+      tr.querySelector(".filebadge") && (tr.querySelector(".filebadge").textContent="📎 "+arr[i].file.name);}});
+  });
+  toggleCardsByType(); recalc(); show("viewForm");
+}
+
+$("btnCancel").onclick=()=>{$("navDash").click()};
+$("btnSave").onclick=()=>{
+  const c=collect();
+  const i=claims.findIndex(x=>x.id===c.id);
+  if(i>=0)claims[i]=c; else claims.push(c);
+  save(LS_CLAIMS,claims); alert("Claim saved."); $("navDash").click();
+};
+$("btnPdf").onclick=()=>{const c=collect(); buildPdf(c); window.print();};
+
+/* ================= dashboard render ================= */
+const TYPE_LBL={tour:"Official Tour",local:"Local Travel",ltc:"LTC",permduty:"Permanent Duty"};
+function isPd(c){return c.kind==="pd"}
+function openClaim(c){ isPd(c)?editPd(c.id):editClaim(c.id); }
+function printClaim(c){ isPd(c)?buildPdfPd(c):buildPdf(c); window.print(); }
+function rowHtml(c){
+  const route = isPd(c) ? `${c.old||"?"} → ${c.new||"?"}` : `${c.from||"?"} → ${c.to||"?"}`;
+  const when  = isPd(c) ? (c.join||c.rel||"") : (c.dep||"");
+  return `<div class="cl list-row clickable" data-id="${c.id}">
+      <div><b>${c.name||"(no name)"}</b><div class="muted small">${route} · ${when}</div></div>
+      <div><span class="pill submitted">${TYPE_LBL[isPd(c)?'permduty':c.type]||c.type}</span></div>
+      <div class="small">Level ${c.level}</div>
+      <div class="right"><b>${money(c.totals?.admissible||0)}</b><div class="muted small">net ${money(c.totals?.net||0)}</div></div>
+      <div><span class="pill ${c.status==='draft'?'draft':'submitted'}">${c.status}</span></div>
+      <div class="row-tools">
+        <button class="ghost small btnEdit">Edit</button>
+        <button class="ghost small btnPrint">PDF</button>
+        <button class="danger small btnDel">Del</button>
+      </div>
+    </div>`;
+}
+function renderDash(){
+  const list=$("claimList");
+  $("kTotal").textContent=claims.length;
+  $("kDraft").textContent=claims.filter(c=>c.status==="draft").length;
+  $("kAmt").textContent=money(claims.reduce((s,c)=>s+(c.totals?.admissible||0),0));
+  $("kCut").textContent=money(claims.reduce((s,c)=>s+(c.totals?.disallowed||0),0));
+  $("emptyMsg").classList.toggle("hidden",claims.length>0);
+  const tada=claims.filter(c=>!isPd(c)).reverse();
+  const pd  =claims.filter(c=>isPd(c)).reverse();
+  const grp=(title,arr)=> arr.length? `<div class="muted small" style="margin:14px 0 6px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">${title} (${arr.length})</div>`+arr.map(rowHtml).join("") : "";
+  list.innerHTML = grp("TA/DA &amp; LTC Claims",tada) + grp("Permanent Duty Claims",pd);
+  list.querySelectorAll(".cl").forEach(row=>{
+    const id=row.dataset.id; const c=claims.find(x=>x.id===id);
+    row.querySelector(".btnEdit").onclick=e=>{e.stopPropagation();openClaim(c)};
+    row.querySelector(".btnDel").onclick=e=>{e.stopPropagation();
+      if(confirm("Delete this claim?")){claims=claims.filter(x=>x.id!==id);save(LS_CLAIMS,claims);renderDash();}};
+    row.querySelector(".btnPrint").onclick=e=>{e.stopPropagation();printClaim(c);};
+    row.onclick=()=>openClaim(c);
+  });
+}
+
+/* ================= PDF FORMAT (printable) ================= */
+function buildPdf(c){
+  const t=c.totals||{};
+  const typeLbl={tour:"OFFICIAL TOUR (TA/DA)",local:"LOCAL OFFICE TRAVEL",transfer:"TRANSFER",ltc:"LEAVE TRAVEL CONCESSION (LTC)"};
+  const billRows=[];
+  c.fare.forEach(f=>billRows.push(["Fare",`${f.m} · ${f.sector} · ${f.cls} (${f.per})`,f.amt,f.amt,f.file?.name||""]));
+  if(c.type==="ltc") c.ltc.forEach(f=>billRows.push(["LTC fare",`${f.nm} (${f.rel}) · ${f.cls}`,f.amt,f.amt,""]));
+  c.hotel.forEach(h=>{const gst=(h.gst||0)*h.nt;
+    const billTot=h.nt*h.rt+gst;
+    const adm=Math.min(h.rt,c.ent.hotel)*h.nt + gst; // room capped + GST fully claimable
+    billRows.push(["Hotel",`${h.hn}, ${h.hc} · ${h.nt} night(s) · ₹${h.rt}/night + GST ${money(gst)} · bill ${h.bn}`,billTot,adm,h.file?.name||""]);});
+  (c.xfer||[]).filter(x=>x.amt>0).forEach(x=>billRows.push(["Taxi (terminal transfer)",
+    `${x.ft} · ${x.md||'Taxi'}${x.dt?' · '+x.dt:''} · bill ${x.bn}`,x.amt,x.amt,x.file?.name||""]));
+  (c.taxi||[]).filter(x=>(x.tot||0)>0).forEach(x=>billRows.push(["Taxi (local)",
+    `${x.cy||''} · ${x.fd||''}→${x.td||''} · ${x.dys||0} day(s) × ₹${x.rt||0} · bill ${x.bn}`,
+    x.tot,Math.min(x.tot, c.ent.taxi>0?c.ent.taxi*(x.dys||0):x.tot),x.file?.name||""]));
+  if(c.type!=="ltc" && c.da.days) billRows.push(["Food/DA (lump-sum)",
+    `${c.da.days} day(s) × ₹${c.da.rate} × ${c.da.pct*100}% (TR 114A)`,
+    c.da.days*c.da.rate*c.da.pct,c.da.days*c.da.rate*c.da.pct,""]);
+  c.other.forEach(o=>billRows.push(["Other",`${o.ds} · bill ${o.bn}`,o.amt,o.amt,o.file?.name||""]));
+
+  const rs = billRows.map((r,i)=>`<tr><td>${i+1}</td><td>${r[0]}</td><td>${r[1]}</td>
+    <td style="text-align:right">${money(r[2])}</td><td style="text-align:right">${money(r[3])}</td><td>${r[4]}</td></tr>`).join("");
+
+  $("printArea").innerHTML = `
+  <div class="pdoc">
+    <h1>${c.office||"GOVERNMENT OFFICE"}</h1>
+    <div class="sub">TRAVELLING ALLOWANCE / LTC CLAIM BILL<br>${typeLbl[c.type]||""}</div>
+    <table class="meta" style="width:100%"><tr>
+      <td><b>Name:</b> ${c.name||""}</td><td><b>Designation:</b> ${c.desig||""}</td><td><b>Pay Level:</b> ${c.level}</td></tr>
+      <tr><td><b>From:</b> ${c.from||""}</td><td><b>To:</b> ${c.to||""}</td><td><b>Dates:</b> ${c.dep||""} – ${c.ret||""}</td></tr>
+      <tr><td><b>Tour Ref:</b> ${c.ref||"—"}</td><td><b>Sanction No.:</b> ${c.sanction||"—"}</td>
+        <td><b>Entitled class:</b> ${c.ent.cls}</td></tr>
+      ${c.type==="ltc"?`<tr><td><b>LTC Type:</b> ${c.ltcMeta.type}</td><td><b>Block:</b> ${c.ltcMeta.block||"—"}</td><td></td></tr>`:""}
+    </table>
+
+    <div class="sec">Statement of Claim</div>
+    <table class="bills"><thead><tr><th>#</th><th>Head</th><th>Particulars</th>
+      <th style="text-align:right">Claimed</th><th style="text-align:right">Admissible</th><th>Bill ref</th></tr></thead>
+      <tbody>${rs||'<tr><td colspan="6">No items</td></tr>'}</tbody></table>
+
+    <div class="sec">Summary</div>
+    <table class="bills"><tbody>
+      <tr><td>Total claimed</td><td style="text-align:right">${money(t.claimed)}</td></tr>
+      <tr><td>Less: disallowed / over-ceiling</td><td style="text-align:right">${money(t.disallowed)}</td></tr>
+      <tr><td><b>Total admissible</b></td><td style="text-align:right"><b>${money(t.admissible)}</b></td></tr>
+      <tr><td>Less: advance drawn</td><td style="text-align:right">${money(t.adv)}</td></tr>
+      <tr><td><b>Net amount payable</b></td><td style="text-align:right"><b>${money(t.net)}</b></td></tr>
+    </tbody></table>
+
+    <p style="font-size:11px;margin-top:14px"><i>Certified that the journey was actually performed on official duty / as per sanction, that the amounts claimed are correct, that no other claim for the same has been or will be preferred, and that the entitlements claimed are admissible under the rules.</i></p>
+    ${c.remarks?`<p style="font-size:11px"><b>Remarks:</b> ${c.remarks}</p>`:""}
+    <div class="sign"><div>Date: ____________</div><div>Signature of Claimant<br>(${c.name||""})</div></div>
+    <div class="sign"><div>Passed for ₹ ____________</div><div>Controlling / Drawing &amp; Disbursing Officer</div></div>
+  </div>`;
+}
+
+/* ===================================================================
+   PERMANENT DUTY (TRANSFER) MODULE — Chapter Two, TR 61A / 61.4 / 87
+   =================================================================== */
+let pdEditId=null, ctgTouched=false;
+// Entitled baggage weight (kg) & road rate (₹/km) per pay-level index (TR 61A)
+const PD_DEFAULTS=[
+  {wt:6000,rate:50}, // 14 & Above
+  {wt:6000,rate:50}, // 12 & 13
+  {wt:6000,rate:50}, // 9 to 11
+  {wt:6000,rate:50}, // 6 to 8  (5A–11 → 6000)
+  {wt:3000,rate:25}  // 5 & Below (level 5 → 3000)
+];
+function pdNum(id){return +$(id).value||0}
+
+function addPFareRow(d={}){
+  const tr=document.createElement("tr");
+  tr.innerHTML=`
+    <td><input class="nm" value="${d.nm||''}"></td>
+    <td><input class="rel" value="${d.rel||'Self'}"></td>
+    <td><input class="age right" type="number" value="${d.age||''}" style="width:55px"></td>
+    <td><select class="m"><option>Train</option><option>Air</option><option>Bus</option><option>Own car</option></select></td>
+    <td><input class="cls" value="${d.cls||''}"></td>
+    <td><input class="sector" value="${d.sector||''}"></td>
+    <td><input class="amt right" type="number" value="${d.amt||0}"></td>
+    <td>${fileCell(d.file)}</td><td>${delBtn()}</td>`;
+  $("pFareTbl").querySelector("tbody").appendChild(tr);
+  if(d.m) tr.querySelector(".m").value=d.m; wirePd(tr);
+}
+function addPVehRow(d={}){
+  const tr=document.createElement("tr");
+  tr.innerHTML=`
+    <td><select class="ty"><option>Motor car</option><option>Motorcycle/Scooter</option><option>Moped</option><option>Bicycle</option></select></td>
+    <td><input class="reg" value="${d.reg||''}"></td>
+    <td><input class="md" value="${d.md||'By rail (transporter risk)'}"></td>
+    <td><input class="bn" value="${d.bn||''}"></td>
+    <td><input class="amt right" type="number" value="${d.amt||0}"></td>
+    <td>${fileCell(d.file)}</td><td>${delBtn()}</td>`;
+  $("pVehTbl").querySelector("tbody").appendChild(tr);
+  if(d.ty) tr.querySelector(".ty").value=d.ty; wirePd(tr);
+}
+function addPOtherRow(d={}){
+  const tr=document.createElement("tr");
+  tr.innerHTML=`
+    <td><input class="ds" value="${d.ds||''}"></td>
+    <td><input class="bn" value="${d.bn||''}"></td>
+    <td><input class="amt right" type="number" value="${d.amt||0}"></td>
+    <td>${fileCell(d.file)}</td><td>${delBtn()}</td>`;
+  $("pOtherTbl").querySelector("tbody").appendChild(tr);
+  wirePd(tr);
+}
+function wirePd(tr){
+  labelizeRow(tr);
+  tr.querySelector(".delrow")?.addEventListener("click",()=>{tr.remove();recalcPd()});
+  tr.querySelectorAll("input,select").forEach(el=>el.addEventListener("input",recalcPd));
+  tr.querySelector(".filecopy")?.addEventListener("change",e=>{
+    const f=e.target.files[0]; if(!f)return; const r=new FileReader();
+    r.onload=()=>{tr._fileData=r.result;tr._fileName=f.name;
+      tr.querySelector(".filebadge").textContent="📎 "+f.name;recalcPd();};
+    r.readAsDataURL(f);
+  });
+}
+$("addPFare").onclick=()=>{addPFareRow();recalcPd()};
+$("addPVeh").onclick=()=>{addPVehRow();recalcPd()};
+$("addPOther").onclick=()=>{addPOtherRow();recalcPd()};
+
+function applyPdLevelDefaults(){
+  const d=PD_DEFAULTS[+$("p_level").value]||PD_DEFAULTS[0];
+  $("pe_entwt").value=d.wt; $("pe_rate").value=d.rate; recalcPd();
+}
+$("p_level").onchange=applyPdLevelDefaults;
+$("pe_mode").onchange=recalcPd;
+
+function recalcPd(){
+  // fare
+  let fareSum=0; rowsOf("pFareTbl").forEach(tr=>fareSum+=num(tr,"amt"));
+  // personal effects
+  const mode=$("pe_mode").value, entwt=pdNum("pe_entwt"), wt=pdNum("pe_wt"),
+        rate=pdNum("pe_rate"), dist=pdNum("pe_dist"), train=pdNum("pe_train"), peGst=pdNum("pe_gst");
+  const base = mode==="road" ? dist*rate : train;
+  const peClaim = base + peGst;
+  const over = wt>entwt;
+  $("peCalc").innerHTML = (mode==="road"
+      ? `Road: ${dist} km × ₹${rate}/km = <b>${money(dist*rate)}</b>`
+      : `Train/steamer actual = <b>${money(train)}</b>`)
+    + ` + GST ${money(peGst)} = <b>${money(peClaim)}</b>`
+    + ` · entitled weight ${entwt} kg` + (over?` · <span style="color:var(--warn)">⚠ actual ${wt} kg exceeds entitlement</span>`:"");
+  // vehicle
+  let vehSum=0; rowsOf("pVehTbl").forEach(tr=>vehSum+=num(tr,"amt"));
+  // CTG (TR 87)
+  const basic=pdNum("p_basic"), island=$("p_island").value==="yes",
+        pub=$("p_public").value==="yes", resi=$("p_resi").value==="yes", d=pdNum("p_dist");
+  let pct=0, basis="", auto=0;
+  if(!pub){ basis="Not in public interest / own request — nil"; }
+  else if(island){ pct=100; basis="Island route (A&N/Lakshadweep)"; auto=basic; }
+  else if(d>=20){ pct=80; basis="Change of station ≥ 20 km"; auto=basic*0.8; }
+  else if(resi){ pct=80/3; basis="< 20 km, change of residence → 1/3 of CTG"; auto=basic*0.8/3; }
+  else { basis="< 20 km, no change of residence — nil"; }
+  auto=Math.round(auto);
+  $("ctg_basis").value=basis; $("ctg_pct").value=pct?pct.toFixed(pct%1?2:0)+"%":"0%"; $("ctg_auto").value=auto;
+  if(!ctgTouched) $("ctg_amt").value=auto;                   // track auto until user edits
+  const ctgClaim=pdNum("ctg_amt");
+  const ctgAdm = auto>0 ? Math.min(ctgClaim,auto) : 0;
+  $("ctgCalc").innerHTML = `${basis} → computed <b>${money(auto)}</b>${ctgClaim!==auto?` · claimed ${money(ctgClaim)} → admissible <b>${money(ctgAdm)}</b>`:""}`;
+  // other
+  let oSum=0; rowsOf("pOtherTbl").forEach(tr=>oSum+=num(tr,"amt"));
+
+  const claimed = fareSum+peClaim+vehSum+ctgClaim+oSum;
+  const admissible = fareSum+peClaim+vehSum+ctgAdm+oSum;
+  const disallowed = Math.max(0,claimed-admissible);
+  const adv=pdNum("p_adv"); const net=admissible-adv;
+  $("pSummary").innerHTML=`
+    <div>Travel fare (self &amp; family)</div><div class="right">${money(fareSum)}</div>
+    <div>Carriage of personal effects</div><div class="right">${money(peClaim)}</div>
+    <div>Vehicle transport</div><div class="right">${money(vehSum)}</div>
+    <div>Composite Transfer Grant</div><div class="right">${money(ctgAdm)}</div>
+    <div>Other charges</div><div class="right">${money(oSum)}</div>
+    <div>Total claimed</div><div class="right">${money(claimed)}</div>
+    <div>Less: disallowed</div><div class="right" style="color:var(--warn)">– ${money(disallowed)}</div>
+    <div>Total admissible</div><div class="right big">${money(admissible)}</div>
+    <div>Less: advance drawn</div><div class="right">– ${money(adv)}</div>
+    <div><b>Net payable</b></div><div class="right big">${money(net)}</div>`;
+  return {claimed,admissible,disallowed,adv,net,fareSum,peClaim,vehSum,ctgAuto:auto,ctgClaim,ctgAdm,oSum};
+}
+["p_basic","p_dist","p_island","p_public","p_resi","pe_entwt","pe_wt","pe_rate","pe_dist","pe_train","pe_gst","p_adv"]
+  .forEach(id=>$(id).addEventListener("input",recalcPd));
+$("ctg_amt").addEventListener("input",()=>{ctgTouched=true;recalcPd();});  // user override of CTG (flag first)
+
+function newPd(){
+  pdEditId=null; ctgTouched=false;
+  ["p_name","p_desig","p_office","p_order","p_orderdt","p_old","p_new","p_rel","p_join","p_remarks"].forEach(id=>$(id).value="");
+  ["p_basic","p_dist","p_adv","pe_wt","pe_dist","pe_train","pe_gst","pe_bn","ctg_amt"].forEach(id=>$(id).value=id==="pe_bn"?"":0);
+  $("p_island").value="no"; $("p_public").value="yes"; $("p_resi").value="yes";
+  $("pe_mode").value="road"; $("p_status").value="draft";
+  ["pFareTbl","pVehTbl","pOtherTbl"].forEach(t=>$(t).querySelector("tbody").innerHTML="");
+  $("p_level").value=0; applyPdLevelDefaults();
+  addPFareRow({rel:"Self"}); addPVehRow(); addPOtherRow();
+  recalcPd(); show("viewPd");
+}
+function editPd(id){
+  const c=claims.find(x=>x.id===id); if(!c)return; pdEditId=id; ctgTouched=true;
+  const S=(k,v)=>{$(k).value=v;};
+  S("p_name",c.name);S("p_desig",c.desig);S("p_office",c.office);S("p_level",c.levelIdx);
+  S("p_basic",c.basic);S("p_order",c.order);S("p_orderdt",c.orderdt);
+  S("p_old",c.old);S("p_new",c.new);S("p_rel",c.rel);S("p_join",c.join);S("p_dist",c.dist);
+  S("p_island",c.island);S("p_public",c.public_);S("p_resi",c.resi);
+  S("pe_mode",c.pe.mode);S("pe_entwt",c.pe.entwt);S("pe_wt",c.pe.wt);S("pe_rate",c.pe.rate);
+  S("pe_dist",c.pe.dist);S("pe_train",c.pe.train);S("pe_gst",c.pe.gst);S("pe_bn",c.pe.bn);
+  S("ctg_amt",c.ctg.amt);S("p_adv",c.adv);S("p_status",c.status);S("p_remarks",c.remarks);
+  ["pFareTbl","pVehTbl","pOtherTbl"].forEach(t=>$(t).querySelector("tbody").innerHTML="");
+  (c.fare||[]).forEach(addPFareRow); (c.veh||[]).forEach(addPVehRow); (c.other||[]).forEach(addPOtherRow);
+  [["pFareTbl",c.fare],["pVehTbl",c.veh],["pOtherTbl",c.other]].forEach(([t,arr])=>{
+    rowsOf(t).forEach((tr,i)=>{if(arr&&arr[i]&&arr[i].file){tr._existingFile=arr[i].file;
+      tr.querySelector(".filebadge")&&(tr.querySelector(".filebadge").textContent="📎 "+arr[i].file.name);}});
+  });
+  recalcPd(); show("viewPd");
+}
+function collectPd(){
+  const fileOf = tr => tr._fileData?{name:tr._fileName,data:tr._fileData}:(tr._existingFile||null);
+  const t=recalcPd();
+  return {
+    id:pdEditId||uid(), kind:"pd", savedAt:new Date().toISOString(),
+    name:$("p_name").value,desig:$("p_desig").value,office:$("p_office").value,
+    levelIdx:+$("p_level").value, level:rules[+$("p_level").value].level, basic:pdNum("p_basic"),
+    order:$("p_order").value,orderdt:$("p_orderdt").value,
+    old:$("p_old").value,new:$("p_new").value,rel:$("p_rel").value,join:$("p_join").value,dist:pdNum("p_dist"),
+    island:$("p_island").value,public_:$("p_public").value,resi:$("p_resi").value,
+    fare:rowsOf("pFareTbl").map(tr=>({nm:val(tr,"nm"),rel:val(tr,"rel"),age:val(tr,"age"),m:val(tr,"m"),cls:val(tr,"cls"),sector:val(tr,"sector"),amt:num(tr,"amt"),file:fileOf(tr)})),
+    pe:{mode:$("pe_mode").value,entwt:pdNum("pe_entwt"),wt:pdNum("pe_wt"),rate:pdNum("pe_rate"),dist:pdNum("pe_dist"),train:pdNum("pe_train"),gst:pdNum("pe_gst"),bn:$("pe_bn").value},
+    veh:rowsOf("pVehTbl").map(tr=>({ty:val(tr,"ty"),reg:val(tr,"reg"),md:val(tr,"md"),bn:val(tr,"bn"),amt:num(tr,"amt"),file:fileOf(tr)})),
+    ctg:{basis:$("ctg_basis").value,pct:$("ctg_pct").value,auto:pdNum("ctg_auto"),amt:pdNum("ctg_amt")},
+    other:rowsOf("pOtherTbl").map(tr=>({ds:val(tr,"ds"),bn:val(tr,"bn"),amt:num(tr,"amt"),file:fileOf(tr)})),
+    adv:pdNum("p_adv"),status:$("p_status").value,remarks:$("p_remarks").value, totals:t
+  };
+}
+$("pCancel").onclick=()=>{$("navDash").click()};
+$("pSave").onclick=()=>{
+  const c=collectPd(); const i=claims.findIndex(x=>x.id===c.id);
+  if(i>=0)claims[i]=c; else claims.push(c);
+  save(LS_CLAIMS,claims); alert("Permanent duty claim saved."); $("navDash").click();
+};
+$("pPdf").onclick=()=>{const c=collectPd(); buildPdfPd(c); window.print();};
+
+function buildPdfPd(c){
+  const t=c.totals||{};
+  const rows=[];
+  (c.fare||[]).forEach(f=>rows.push(["Travel fare",`${f.nm} (${f.rel}) · ${f.m} · ${f.cls} · ${f.sector}`,f.amt,f.amt,f.file?.name||""]));
+  const peBase=c.pe.mode==="road"?c.pe.dist*c.pe.rate:c.pe.train;
+  const peTot=peBase+(c.pe.gst||0);
+  rows.push(["Personal effects",
+    c.pe.mode==="road"?`By road · ${c.pe.dist} km × ₹${c.pe.rate}/km + GST ${money(c.pe.gst)} · ${c.pe.wt}/${c.pe.entwt} kg · bill ${c.pe.bn}`
+                      :`By train/steamer · actual + GST ${money(c.pe.gst)} · ${c.pe.wt}/${c.pe.entwt} kg · bill ${c.pe.bn}`,
+    peTot,peTot,""]);
+  (c.veh||[]).filter(v=>v.amt>0).forEach(v=>rows.push(["Vehicle transport",`${v.ty} ${v.reg} · ${v.md} · bill ${v.bn}`,v.amt,v.amt,v.file?.name||""]));
+  rows.push(["Composite Transfer Grant",`${c.ctg.basis} (${c.ctg.pct} of basic ₹${c.basic})`,c.ctg.amt,t.ctgAdm,""]);
+  (c.other||[]).forEach(o=>rows.push(["Other",`${o.ds} · bill ${o.bn}`,o.amt,o.amt,o.file?.name||""]));
+  const rs=rows.map((r,i)=>`<tr><td>${i+1}</td><td>${r[0]}</td><td>${r[1]}</td>
+    <td style="text-align:right">${money(r[2])}</td><td style="text-align:right">${money(r[3])}</td><td>${r[4]}</td></tr>`).join("");
+  $("printArea").innerHTML=`
+  <div class="pdoc">
+    <h1>${c.office||"GOVERNMENT OFFICE"}</h1>
+    <div class="sub">TRAVELLING ALLOWANCE CLAIM — PERMANENT DUTY / TRANSFER<br>(Chapter Two · No DA admissible)</div>
+    <table class="meta" style="width:100%">
+      <tr><td><b>Name:</b> ${c.name||""}</td><td><b>Designation:</b> ${c.desig||""}</td><td><b>Pay Level:</b> ${c.level}</td></tr>
+      <tr><td><b>Old station:</b> ${c.old||""}</td><td><b>New station:</b> ${c.new||""}</td><td><b>Distance:</b> ${c.dist||0} km</td></tr>
+      <tr><td><b>Order no.:</b> ${c.order||"—"}</td><td><b>Relieved:</b> ${c.rel||"—"}</td><td><b>Joined:</b> ${c.join||"—"}</td></tr>
+      <tr><td><b>Basic pay:</b> ₹${c.basic||0}</td><td colspan="2"><b>CTG basis:</b> ${c.ctg.basis}</td></tr>
+    </table>
+    <div class="sec">Statement of Claim</div>
+    <table class="bills"><thead><tr><th>#</th><th>Head</th><th>Particulars</th>
+      <th style="text-align:right">Claimed</th><th style="text-align:right">Admissible</th><th>Bill ref</th></tr></thead>
+      <tbody>${rs}</tbody></table>
+    <div class="sec">Summary</div>
+    <table class="bills"><tbody>
+      <tr><td>Total claimed</td><td style="text-align:right">${money(t.claimed)}</td></tr>
+      <tr><td>Less: disallowed</td><td style="text-align:right">${money(t.disallowed)}</td></tr>
+      <tr><td><b>Total admissible</b></td><td style="text-align:right"><b>${money(t.admissible)}</b></td></tr>
+      <tr><td>Less: advance drawn</td><td style="text-align:right">${money(t.adv)}</td></tr>
+      <tr><td><b>Net amount payable</b></td><td style="text-align:right"><b>${money(t.net)}</b></td></tr>
+    </tbody></table>
+    <p style="font-size:11px;margin-top:14px"><i>Certified that the transfer was ordered in public interest, that the journey & carriage of personal effects were actually performed, that the amounts claimed are correct, that no other claim for the same has been or will be preferred, and that a change of residence was involved (where CTG is claimed).</i></p>
+    ${c.remarks?`<p style="font-size:11px"><b>Remarks:</b> ${c.remarks}</p>`:""}
+    <div class="sign"><div>Date: ____________</div><div>Signature of Claimant<br>(${c.name||""})</div></div>
+    <div class="sign"><div>Passed for ₹ ____________</div><div>Controlling / Drawing &amp; Disbursing Officer</div></div>
+  </div>`;
+}
+
+/* ================= boot ================= */
+levelOptions();
+applyLevelDefaults();
+toggleCardsByType();
+renderDash();
+show("viewDash"); $("navDash").classList.add("primary");
+</script>
+</body>
+</html>
