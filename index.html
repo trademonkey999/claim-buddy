@@ -273,10 +273,10 @@
 
     <!-- Hotel stay (hidden for LTC/local) -->
     <div class="card" id="hotelCard">
-      <h2>Hotel / Lodging Stay</h2>
+      <h2>Hotel / Lodging Stay <span class="muted small">(GST auto by slab: ≤₹1000 → 0% · ₹1001–7500 → 5% · &gt;₹7500 → 18%)</span></h2>
       <table id="hotelTbl">
         <thead><tr><th>Hotel name</th><th>City</th><th>Check-in</th><th>Check-out</th>
-          <th>Nights</th><th class="right">Rate/night (₹)</th><th class="right">GST/day (₹)</th>
+          <th>Nights</th><th class="right">Rate/night (₹)</th><th class="right">GST/day (auto)</th>
           <th>Bill no.</th><th class="right">Bill total (₹)</th><th>Bill copy</th><th></th></tr></thead>
         <tbody></tbody>
       </table>
@@ -503,10 +503,13 @@
       <details style="margin-top:14px">
         <summary>Source: Defence Services Travel Regulations, Edition 2025</summary>
         <p class="muted small">Hotel/taxi/food ceilings are from <b>TR 114A</b>; rail class from <b>TR 57</b>,
-        air class from <b>TR 62</b>. Food is paid as a <b>lump-sum DA (no vouchers)</b>, regulated by absence
+        air class from <b>TR 62</b>. <b>Hotel ceilings reflect the 25% DA-linked increase</b> over base 7th-CPC
+        values (₹9375/5625/2813/938/563). <b>GST on hotel room tariff is added automatically by slab</b> and is
+        fully reimbursable on top of the ceiling: ≤₹1000 → 0% (exempt) · ₹1001–7500 → 5% (no ITC) ·
+        &gt;₹7500 → 18% (ITC). Food is paid as a <b>lump-sum DA (no vouchers)</b>, regulated by absence
         from HQ — &lt;6h=30%, 6–12h=70%, &gt;12h=100% (TR 114A.5). For Level 8 &amp; below, hotel &amp; taxi up to
         ceiling are payable on <b>self-certification</b> (no vouchers); Class-X city hotel ceiling is ₹1000/day
-        on vouchers. All ceilings rise 25% whenever DA rises 50%. LTC (Ch.4) reimburses entitled-class fare for
+        on vouchers. Ceilings rise 25% whenever DA rises 50%. LTC (Ch.4) reimburses entitled-class fare for
         self &amp; family only — no hotel/DA. <b>Confirm every figure against the latest amendments before filing.</b></p>
       </details>
     </div>
@@ -520,17 +523,27 @@
 "use strict";
 /* ===== DEFAULT RULESET — DSR Travel Regulations 2025 + updated allowances =====
    Hotel = room ceiling (taxes/GST added separately, fully claimable).
-   Food ceilings updated per user (2026-06-24). Rail TR 57, Air TR 62. Editable. ===== */
+   Hotel ceilings raised 25% over base 7th-CPC values (DA-linked escalation, TR 114A.2), 2026-06-25:
+     7500→9375 · 4500→5625 · 2250→2813 · 750→938 · 450→563.
+   Food ceilings updated 2026-06-24. Rail TR 57, Air TR 62. Editable. ===== */
 const DEFAULT_RULES = [
-  {level:"14 & Above", class:"Air: Business/Club · Rail: Executive/AC-I", hotel:7500, food:1500, taxi:0,   taxiNote:"AC taxi as per actual (within city)"},
-  {level:"12 & 13",    class:"Air: Economy · Rail: Executive/AC-I",       hotel:4500, food:1250, taxi:0,   taxiNote:"Non-AC taxi up to 50 km/day within city (actuals)"},
-  {level:"9 to 11",    class:"Air: Economy · Rail: AC-II / CC",           hotel:2250, food:1125, taxi:338, taxiNote:"Non-AC taxi up to ₹338/day"},
-  {level:"6 to 8",     class:"Air: Economy · Rail: AC-II / CC",           hotel:750,  food:1000, taxi:225, taxiNote:"Non-AC taxi up to ₹225/day"},
-  {level:"5 & Below",  class:"Rail: AC-III / Chair car (no air)",         hotel:450,  food:625,  taxi:113, taxiNote:"Non-AC taxi up to ₹113/day"}
+  {level:"14 & Above", class:"Air: Business/Club · Rail: Executive/AC-I", hotel:9375, food:1500, taxi:0,   taxiNote:"AC taxi as per actual (within city)"},
+  {level:"12 & 13",    class:"Air: Economy · Rail: Executive/AC-I",       hotel:5625, food:1250, taxi:0,   taxiNote:"Non-AC taxi up to 50 km/day within city (actuals)"},
+  {level:"9 to 11",    class:"Air: Economy · Rail: AC-II / CC",           hotel:2813, food:1125, taxi:338, taxiNote:"Non-AC taxi up to ₹338/day"},
+  {level:"6 to 8",     class:"Air: Economy · Rail: AC-II / CC",           hotel:938,  food:1000, taxi:225, taxiNote:"Non-AC taxi up to ₹225/day"},
+  {level:"5 & Below",  class:"Rail: AC-III / Chair car (no air)",         hotel:563,  food:625,  taxi:113, taxiNote:"Non-AC taxi up to ₹113/day"}
 ];
 
+/* GST slabs on hotel room tariff (per day), applied automatically during bill calculation:
+   ≤ ₹1,000 → 0% (exempt) · ₹1,001–7,500 → 5% (no ITC) · > ₹7,500 → 18% (ITC). */
+function hotelGstRate(ratePerDay){
+  if(ratePerDay<=1000) return 0;
+  if(ratePerDay<=7500) return 0.05;
+  return 0.18;
+}
+
 /* ================= storage ================= */
-const LS_CLAIMS="cb_claims_v1", LS_RULES="cb_rules_v2"; // v2: updated food ceilings 2026-06-24
+const LS_CLAIMS="cb_claims_v1", LS_RULES="cb_rules_v3"; // v3: hotel +25% & GST slabs 2026-06-25
 let rules = load(LS_RULES) || JSON.parse(JSON.stringify(DEFAULT_RULES));
 let claims = load(LS_CLAIMS) || [];
 let editId = null; // id of claim being edited
@@ -612,7 +625,7 @@ function addHotelRow(d={}){
     <td><input class="co" type="date" value="${d.co||''}"></td>
     <td><input class="nt right" type="number" value="${d.nt||1}" style="width:60px"></td>
     <td><input class="rt right" type="number" value="${d.rt||0}"></td>
-    <td><input class="gst right" type="number" value="${d.gst||0}"></td>
+    <td><input class="gst right" readonly title="Auto by GST slab on room tariff" value="${d.gst||0}"></td>
     <td><input class="bn" value="${d.bn||''}"></td>
     <td><input class="ba right" readonly value="${d.ba||0}"></td>
     <td>${fileCell(d.file)}</td><td>${delBtn()}</td>`;
@@ -739,17 +752,21 @@ function recalc(){
   let ltcSum=0;
   rowsOf("ltcTbl").forEach(tr=>ltcSum+=num(tr,"amt"));
 
-  // hotel — room tariff capped at ceiling/night; GST fully claimable on top
-  let hClaim=0,hAdm=0,gstSum=0;
+  // hotel — room tariff capped at ceiling/night; GST auto by slab, fully claimable on top
+  let hClaim=0,hAdm=0,gstSum=0; const slabPct=new Set();
   rowsOf("hotelTbl").forEach(tr=>{
-    const nights=num(tr,"nt"), rate=num(tr,"rt"), gstDay=num(tr,"gst");
+    const nights=num(tr,"nt"), rate=num(tr,"rt");
+    const gstDay=Math.round(rate*hotelGstRate(rate)*100)/100; // GST slab on room tariff/day
+    tr.querySelector(".gst").value=gstDay;          // auto-fill GST/day from slab
+    slabPct.add(hotelGstRate(rate)*100);
     const roomClaim=nights*rate, gst=nights*gstDay;
     const billTotal=roomClaim+gst;
-    tr.querySelector(".ba").value=billTotal;       // auto bill total = room + GST
+    tr.querySelector(".ba").value=billTotal;        // auto bill total = room + GST
     const roomAdm=Math.min(rate, cap.hotel)*nights; // ceiling caps room only
     hClaim+=billTotal; hAdm+=roomAdm+gst; gstSum+=gst;
   });
-  $("hotelCalc").innerHTML = `Hotel claimed <b>${money(hClaim)}</b> (incl. GST ${money(gstSum)}) · room admissible at ceiling ${money(cap.hotel)}/night + GST fully claimable = <b>${money(hAdm)}</b>`;
+  const slabTxt=[...slabPct].sort((a,b)=>a-b).map(p=>p+"%").join("/")||"0%";
+  $("hotelCalc").innerHTML = `Hotel claimed <b>${money(hClaim)}</b> (incl. GST ${money(gstSum)} @ ${slabTxt} slab) · room admissible at ceiling ${money(cap.hotel)}/night + GST fully claimable = <b>${money(hAdm)}</b>`;
 
   // taxi — local (date-range, days × rate) + station/airport transfers
   const daysBetween=(a,b)=>{ if(!a||!b)return 0; const d=(new Date(b)-new Date(a))/86400000; return d>=0?Math.floor(d)+1:0; };
@@ -925,7 +942,8 @@ function buildPdf(c){
   c.hotel.forEach(h=>{const gst=(h.gst||0)*h.nt;
     const billTot=h.nt*h.rt+gst;
     const adm=Math.min(h.rt,c.ent.hotel)*h.nt + gst; // room capped + GST fully claimable
-    billRows.push(["Hotel",`${h.hn}, ${h.hc} · ${h.nt} night(s) · ₹${h.rt}/night + GST ${money(gst)} · bill ${h.bn}`,billTot,adm,h.file?.name||""]);});
+    const slab=(hotelGstRate(h.rt)*100)+"% GST";
+    billRows.push(["Hotel",`${h.hn}, ${h.hc} · ${h.nt} night(s) · ₹${h.rt}/night + ${slab} ${money(gst)} · bill ${h.bn}`,billTot,adm,h.file?.name||""]);});
   (c.xfer||[]).filter(x=>x.amt>0).forEach(x=>billRows.push(["Taxi (terminal transfer)",
     `${x.ft} · ${x.md||'Taxi'}${x.dt?' · '+x.dt:''} · bill ${x.bn}`,x.amt,x.amt,x.file?.name||""]));
   (c.taxi||[]).filter(x=>(x.tot||0)>0).forEach(x=>billRows.push(["Taxi (local)",
