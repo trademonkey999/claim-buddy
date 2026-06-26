@@ -156,13 +156,17 @@
   /* ---------- PRINT / PDF format ---------- */
   #printArea{display:none}
   @media print{
-    body *{visibility:hidden}
-    #printArea,#printArea *{visibility:visible}
-    #printArea{display:block!important;position:absolute;left:0;top:0;width:100%;
+    /* hide everything except the claim — display:none (not visibility) so no blank pages */
+    body > *:not(#printArea){display:none!important}
+    #printArea{display:block!important;position:static;width:auto;
       color:#000;background:#fff;font-size:12px;padding:0}
     @page{size:A4;margin:14mm}
   }
   #printArea{color:#000;background:#fff;font-family:"Times New Roman",Georgia,serif}
+  /* attached bill pages (annexures) */
+  .annexure{page-break-before:always;break-before:page;text-align:center}
+  .annex-cap{font-size:12px;font-weight:700;margin:0 0 8px;text-align:left;border-bottom:1px solid #000;padding-bottom:4px}
+  .annexure img{max-width:100%;max-height:235mm;object-fit:contain}
   .pdoc{max-width:760px;margin:0 auto}
   .pdoc h1{font-size:16px;text-align:center;margin:0}
   .pdoc .sub{text-align:center;font-size:12px;margin:2px 0 14px}
@@ -366,7 +370,7 @@
     <div class="row-tools" style="justify-content:flex-end">
       <button class="ghost" id="btnCancel">Cancel</button>
       <button class="green" id="btnSave">💾 Save Claim</button>
-      <button class="primary" id="btnPdf">🖨️ Generate Claim PDF</button>
+      <button class="primary" id="btnPdf">⬇️ Generate Claim PDF (with bills)</button>
     </div>
   </section>
 
@@ -483,7 +487,7 @@
     <div class="row-tools" style="justify-content:flex-end">
       <button class="ghost" id="pCancel">Cancel</button>
       <button class="green" id="pSave">💾 Save Claim</button>
-      <button class="primary" id="pPdf">🖨️ Generate Claim PDF</button>
+      <button class="primary" id="pPdf">⬇️ Generate Claim PDF (with bills)</button>
     </div>
   </section>
 
@@ -888,13 +892,13 @@ $("btnSave").onclick=()=>{
   if(i>=0)claims[i]=c; else claims.push(c);
   save(LS_CLAIMS,claims); alert("Claim saved."); $("navDash").click();
 };
-$("btnPdf").onclick=()=>{const c=collect(); buildPdf(c); window.print();};
+$("btnPdf").onclick=()=>{const c=collect(); generateClaimPdf(c);};
 
 /* ================= dashboard render ================= */
 const TYPE_LBL={tour:"Official Tour",local:"Local Travel",ltc:"LTC",permduty:"Permanent Duty"};
 function isPd(c){return c.kind==="pd"}
 function openClaim(c){ isPd(c)?editPd(c.id):editClaim(c.id); }
-function printClaim(c){ isPd(c)?buildPdfPd(c):buildPdf(c); window.print(); }
+function printClaim(c){ generateClaimPdf(c); }
 function rowHtml(c){
   const route = isPd(c) ? `${c.old||"?"} → ${c.new||"?"}` : `${c.from||"?"} → ${c.to||"?"}`;
   const when  = isPd(c) ? (c.join||c.rel||"") : (c.dep||"");
@@ -930,6 +934,25 @@ function renderDash(){
     row.querySelector(".btnPrint").onclick=e=>{e.stopPropagation();printClaim(c);};
     row.onclick=()=>openClaim(c);
   });
+}
+
+/* ================= attachments (bill copies) ================= */
+function gatherAttachments(c){
+  const out=[];
+  const add=(arr,head)=>(arr||[]).forEach((r,i)=>{ if(r.file&&r.file.data)
+    out.push({label:`${head} ${i+1}`,name:r.file.name||"bill",data:r.file.data}); });
+  if(c.kind==="pd"){ add(c.fare,"Travel fare"); add(c.veh,"Vehicle"); add(c.other,"Other"); }
+  else { add(c.fare,"Travel fare"); add(c.hotel,"Hotel"); add(c.xfer,"Taxi (terminal)");
+         add(c.taxi,"Local taxi"); add(c.other,"Other"); }
+  return out;
+}
+const isImgData=d=>/^data:image\//.test(d||"");
+const isPdfData=d=>/^data:application\/pdf/.test(d||"");
+// HTML annexure pages for IMAGE bills only (used by the print fallback)
+function imgAnnexHtml(c){
+  return gatherAttachments(c).filter(a=>isImgData(a.data)).map((a,i)=>
+    `<div class="annexure"><div class="annex-cap">Annexure ${i+1}: ${a.label} — ${a.name}</div>`+
+    `<img src="${a.data}"></div>`).join("");
 }
 
 /* ================= PDF FORMAT (printable) ================= */
@@ -987,7 +1010,7 @@ function buildPdf(c){
     ${c.remarks?`<p style="font-size:11px"><b>Remarks:</b> ${c.remarks}</p>`:""}
     <div class="sign"><div>Date: ____________</div><div>Signature of Claimant<br>(${c.name||""})</div></div>
     <div class="sign"><div>Passed for ₹ ____________</div><div>Controlling / Drawing &amp; Disbursing Officer</div></div>
-  </div>`;
+  </div>${imgAnnexHtml(c)}`;
 }
 
 /* ===================================================================
@@ -1170,7 +1193,7 @@ $("pSave").onclick=()=>{
   if(i>=0)claims[i]=c; else claims.push(c);
   save(LS_CLAIMS,claims); alert("Permanent duty claim saved."); $("navDash").click();
 };
-$("pPdf").onclick=()=>{const c=collectPd(); buildPdfPd(c); window.print();};
+$("pPdf").onclick=()=>{const c=collectPd(); generateClaimPdf(c);};
 
 function buildPdfPd(c){
   const t=c.totals||{};
@@ -1213,7 +1236,88 @@ function buildPdfPd(c){
     ${c.remarks?`<p style="font-size:11px"><b>Remarks:</b> ${c.remarks}</p>`:""}
     <div class="sign"><div>Date: ____________</div><div>Signature of Claimant<br>(${c.name||""})</div></div>
     <div class="sign"><div>Passed for ₹ ____________</div><div>Controlling / Drawing &amp; Disbursing Officer</div></div>
-  </div>`;
+  </div>${imgAnnexHtml(c)}`;
+}
+
+/* ============ MERGED CLAIM PDF (statement + image & PDF bill attachments) ============
+   Lazy-loads pdf-lib + html2canvas on demand (zero deps at page load). Produces ONE
+   downloadable PDF: claim statement + every uploaded bill (images AND PDFs). If the
+   libraries can't load (e.g. opened offline as a file), falls back to the print view
+   (which still embeds image bills). */
+const CDN_PDFLIB="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js";
+const CDN_H2C="https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js";
+function loadScript(src){return new Promise((res,rej)=>{
+  const s=document.createElement("script");s.src=src;s.onload=res;s.onerror=()=>rej(new Error("load "+src));
+  document.head.appendChild(s);});}
+async function ensureLibs(){
+  if(!window.html2canvas) await loadScript(CDN_H2C);
+  if(!window.PDFLib) await loadScript(CDN_PDFLIB);
+}
+async function dataUrlToBytes(d){return new Uint8Array(await (await fetch(d)).arrayBuffer());}
+
+async function generateClaimPdf(c){
+  const pd=c.kind==="pd";
+  pd?buildPdfPd(c):buildPdf(c);                 // fill #printArea (statement + image annexures)
+  const pdfBills=gatherAttachments(c).filter(a=>isPdfData(a.data)).length;
+  try{
+    await ensureLibs();
+    if(!window.PDFLib||!window.html2canvas) throw new Error("libs unavailable");
+    const {PDFDocument,StandardFonts,rgb}=PDFLib;
+    const out=await PDFDocument.create();
+    const font=await out.embedFont(StandardFonts.Helvetica);
+    const A4=[595.28,841.89], M=40;
+    // 1) statement → rasterise the .pdoc only (exclude annexure <img> to keep canvas small)
+    const pdoc=$("printArea").querySelector(".pdoc");
+    const holder=document.createElement("div");
+    holder.style.cssText="position:fixed;left:-10000px;top:0;width:760px;background:#fff;padding:24px;"+
+      "font-family:'Times New Roman',Georgia,serif;color:#000";
+    holder.innerHTML=pdoc.outerHTML;
+    document.body.appendChild(holder);
+    const canvas=await html2canvas(holder,{scale:2,backgroundColor:"#fff"});
+    document.body.removeChild(holder);
+    const cw=canvas.width, ch=canvas.height, pageW=A4[0]-2*M, pageH=A4[1]-2*M;
+    const sliceH=Math.floor(cw*(pageH/pageW));
+    for(let y=0;y<ch;y+=sliceH){
+      const h=Math.min(sliceH,ch-y);
+      const cnv=document.createElement("canvas"); cnv.width=cw; cnv.height=h;
+      cnv.getContext("2d").drawImage(canvas,0,y,cw,h,0,0,cw,h);
+      const png=await out.embedPng(await dataUrlToBytes(cnv.toDataURL("image/png")));
+      const page=out.addPage(A4); const dispH=(h/cw)*pageW;
+      page.drawImage(png,{x:M,y:A4[1]-M-dispH,width:pageW,height:dispH});
+    }
+    // 2) bill attachments — images embedded, PDFs page-copied
+    let n=0;
+    for(const a of gatherAttachments(c)){
+      n++;
+      const cap=`Annexure ${n}: ${a.label} — ${a.name}`;
+      if(isPdfData(a.data)){
+        const src=await PDFDocument.load(await dataUrlToBytes(a.data),{ignoreEncryption:true});
+        const pages=await out.copyPages(src,src.getPageIndices());
+        pages.forEach((p,i)=>{out.addPage(p);
+          p.drawText(cap+(pages.length>1?` (p${i+1}/${pages.length})`:""),
+            {x:20,y:p.getHeight()-16,size:8,font,color:rgb(.25,.25,.25)});});
+      }else if(isImgData(a.data)){
+        const bytes=await dataUrlToBytes(a.data);
+        const img=/^data:image\/png/.test(a.data)?await out.embedPng(bytes):await out.embedJpg(bytes);
+        const page=out.addPage(A4);
+        page.drawText(cap,{x:M,y:A4[1]-26,size:9,font,color:rgb(.1,.1,.1)});
+        const s=Math.min((A4[0]-2*M)/img.width,(A4[1]-2*M-20)/img.height);
+        const w=img.width*s,h=img.height*s;
+        page.drawImage(img,{x:(A4[0]-w)/2,y:(A4[1]-h)/2-10,width:w,height:h});
+      }
+    }
+    const blob=new Blob([await out.save()],{type:"application/pdf"});
+    const url=URL.createObjectURL(blob), link=document.createElement("a");
+    link.href=url;
+    link.download=`Claim_${(c.name||"claim").replace(/\s+/g,"_")}_${((c.dep||c.join||"")+"").replace(/-/g,"")||"draft"}.pdf`;
+    document.body.appendChild(link); link.click(); link.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),5000);
+  }catch(err){
+    console.warn("Merged PDF unavailable, falling back to print:",err);
+    if(pdfBills) alert("A merged PDF needs internet (for the PDF engine) — falling back to the print view.\n"+
+      "Image bills are included; "+pdfBills+" PDF bill(s) will need to be attached separately.");
+    window.print();
+  }
 }
 
 /* ================= boot ================= */
