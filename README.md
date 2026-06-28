@@ -3,7 +3,7 @@
 Single-file web app for filing Government TA/DA, LTC and Permanent-Duty travel claims
 under the Defence Services Travel Regulations, Edition 2025.
 
-- **Live app:** open `index.html` (served by GitHub Pages at the repo's Pages URL).
+- **Live app:** https://trademonkey999.github.io/claim-buddy/ (GitHub Pages, branch `main`, root).
 - Fully self-contained — no dependencies, no server, no network. Data is saved locally
   in the browser (localStorage); nothing is uploaded anywhere.
 
